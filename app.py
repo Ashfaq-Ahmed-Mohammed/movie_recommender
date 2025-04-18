@@ -8,6 +8,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 # Page Setup
 # ------------------------------
 st.set_page_config(page_title="Movie Recommendation Engine", layout="wide")
+
 st.markdown("""
     <style>
         .main-title {
@@ -17,46 +18,41 @@ st.markdown("""
             text-align: center;
         }
         .subsection {
-            font-size: 20px;
+            font-size: 24px;
             margin-top: 30px;
             font-weight: 600;
         }
         .stButton > button {
-            background-color: #cce5ff;
-            color: #003366;
+            background-color: #f0f8ff;
+            border: none;
+            border-radius: 15px;
+            padding: 1.5rem;
+            width: 100%;
+            text-align: center;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+            transition: all 0.3s ease-in-out;
+            font-size: 22px;
             font-weight: bold;
+            color: #003366;
+            cursor: pointer;
+        }
+        .stButton > button:hover {
+            background-color: #d6eaff;
+            transform: scale(1.03);
+        }
+        .refresh-button > button {
+            background-color: #d1f2eb;
+            color: #00695c;
+            font-weight: bold;
+            font-size: 16px;
             border-radius: 10px;
-            border: 1px solid #99ccff;
             padding: 0.5rem 1rem;
+            margin-top: 1rem;
+            border: 2px solid #66bb6a;
         }
-        .stButton > button:focus,
-        .stButton > button:active {
-            background-color: #99ccff;
-            color: #001f4d;
-            border: 1px solid #3366cc;
-        }
-        .stTextInput > div > input {
-            border-radius: 10px;
-            padding: 0.5rem;
-            border: 1px solid #3366cc;
-        }
-        .stRadio > div {
-            background-color: #f4faff;
-            padding: 0.5rem;
-            border-radius: 10px;
-            border: 1px solid #cce5ff;
-        }
-        .stSlider > div {
-            background-color: #f4faff;
-            padding: 0.5rem;
-            border-radius: 10px;
-        }
-        .stMarkdown.recommendation-box {
-            background-color: #e6f2ff;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            border-radius: 10px;
-            border: 1px solid #99ccff;
+        .refresh-button > button:hover {
+            background-color: #b2dfdb;
+            color: #004d40;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -85,7 +81,6 @@ def load_resources():
 
     return df, kmeans, dbscan, gmm, fasttext_vectors, title_to_index, combined_features
 
-# Load all resources
 df_full, kmeans, dbscan, gmm, fasttext_vectors, title_to_index, combined_features = load_resources()
 
 # ------------------------------
@@ -107,49 +102,60 @@ if st.session_state.refresh_grid:
     st.session_state.grid_movies = popular_recent_movies.sample(n=9, random_state=None).reset_index(drop=True)
     st.session_state.refresh_grid = False
 
-# ------------------------------
 if 'selected_title' not in st.session_state:
     st.session_state.selected_title = None
 
-if 'grid_movies' not in st.session_state or st.session_state.get('refresh_grid', False):
-    recent_movies = df_full[df_full['year'] >= 2000].dropna(subset=['title', 'popularity']).copy()
-    threshold = recent_movies['popularity'].quantile(0.75)
-    popular_recent_movies = recent_movies[recent_movies['popularity'] >= threshold]
-    st.session_state.grid_movies = popular_recent_movies.sample(n=9, random_state=None).reset_index(drop=True)
-    st.session_state.refresh_grid = False
+if 'grid_selected_index' not in st.session_state:
+    st.session_state.grid_selected_index = None
 
 # ------------------------------
-# UI
+# UI Layout
 # ------------------------------
 st.markdown("<div class='main-title'>🎬 Movie Recommendation Engine</div>", unsafe_allow_html=True)
-st.markdown("<div class='subsection'>🎯 Choose a movie you like (popular and post-2000):</div>", unsafe_allow_html=True)
 
-if st.button("🔁 Refresh Movie Grid"):
-    st.session_state.refresh_grid = True
-    st.experimental_rerun()
+# ------------------------------
+# 🎯 3x3 Movie Grid
+st.markdown("<div class='subsection'>🎯 Choose a movie you like:</div>", unsafe_allow_html=True)
 
-selected_from_grid = None
-df_grid = st.session_state.grid_movies
+df_grid = st.session_state.grid_movies.copy()
+df_grid['year'] = df_grid['year'].fillna(0).astype(int).astype(str)
+
 cols = st.columns(3)
 for i in range(3):
     for j in range(3):
         idx = i * 3 + j
         with cols[j]:
-            if st.button(df_grid.loc[idx, 'title'], key=idx):
-                selected_from_grid = df_grid.loc[idx, 'title']
+            movie_title = df_grid.loc[idx, 'title']
+            movie_year = df_grid.loc[idx, 'year']
 
+            button_text = f"{movie_title}\n({movie_year})"
+
+            clicked = st.button(button_text, key=f"movie_{idx}")
+
+            if clicked:
+                st.session_state.selected_title = movie_title
+                st.session_state.grid_selected_index = idx
+
+# ------------------------------
+# Refresh Grid Button
+st.markdown("### ")
+refresh_col = st.columns([1, 6, 1])[1]
+with refresh_col:
+    if st.button("🔁 Refresh Movie Grid", key="refresh_grid_button", help="Get a new random set of movies"):
+        st.session_state.refresh_grid = True
+        st.experimental_rerun()
+
+# ------------------------------
+# Custom Movie Textbox
 st.markdown("---")
 st.markdown("<div class='subsection'>✍️ Or enter a custom movie title:</div>", unsafe_allow_html=True)
 custom_input = st.text_input("Movie title")
 
 if custom_input:
     st.session_state.selected_title = custom_input
-elif selected_from_grid:
-    st.session_state.selected_title = selected_from_grid
 
 # ------------------------------
 # Recommendation Functions
-# ------------------------------
 def get_recommendations_kmeans(title, df, title_to_index, combined_features, top_n=10):
     title = title.strip().lower()
     if title not in title_to_index:
@@ -197,14 +203,16 @@ def get_recommendations_gmm(title, df, title_to_index, combined_features, top_n=
 
 # ------------------------------
 # Recommendation Panel
-# ------------------------------
 if st.session_state.selected_title:
     selected_title = st.session_state.selected_title
     st.markdown(f"<div class='subsection'>✅ You selected: <b>{selected_title}</b></div>", unsafe_allow_html=True)
+
     model_choice = st.radio("Select a recommendation model:", ['K-Means', 'DBSCAN', 'GMM', 'FastText'], horizontal=True)
     top_n = st.slider("Number of recommendations:", 5, 15, 10)
+
     if st.button("🔍 Get Recommendations"):
         st.markdown("### 🎥 You might also like:")
+
         if model_choice == 'GMM':
             recommendations = get_recommendations_gmm(selected_title, df_full, title_to_index, combined_features, top_n)
         elif model_choice == 'DBSCAN':
@@ -216,10 +224,34 @@ if st.session_state.selected_title:
             sim_scores = cosine_similarity([fasttext_vectors[idx]], fasttext_vectors).flatten()
             sim_indices = sim_scores.argsort()[::-1][1:top_n+1]
             recommendations = df_full.iloc[sim_indices][['title', 'director', 'genre_list']]
+
         if isinstance(recommendations, str):
             st.warning(recommendations)
         elif recommendations is None or len(recommendations) == 0:
             st.warning("No recommendations found. Try another movie.")
         else:
-            for _, row in recommendations.iterrows():
-                st.write(f"• **{row['title']}** — 🎬 {row.get('director', 'N/A')}, 🎭 {row.get('genre_list', 'N/A')}")
+            col1, col2 = st.columns(2)
+
+            card_color = "#e6f2ff"
+
+            for idx, row in recommendations.iterrows():
+                card_html = f"""
+                    <div style="
+                        background-color: {card_color};
+                        border-radius: 15px;
+                        padding: 1.2rem;
+                        margin: 0.8rem;
+                        box-shadow: 2px 2px 8px rgba(0,0,0,0.1);
+                    ">
+                        <div style="font-size:22px; font-weight:bold; color:#003366; margin-bottom:0.5rem;">🎬 {row['title']}</div>
+                        <div style="font-size:18px; color:#555555;">🎬 Director: {row.get('director', 'N/A')}</div>
+                        <div style="font-size:18px; color:#555555;">🎭 Genres: {row.get('genre_list', 'N/A')}</div>
+                    </div>
+                """
+
+                if idx % 2 == 0:
+                    with col1:
+                        st.markdown(card_html, unsafe_allow_html=True)
+                else:
+                    with col2:
+                        st.markdown(card_html, unsafe_allow_html=True)
