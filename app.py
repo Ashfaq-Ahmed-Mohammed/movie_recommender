@@ -4,9 +4,7 @@ import numpy as np
 import pickle
 from sklearn.metrics.pairwise import cosine_similarity
 
-# ------------------------------
-# Page Setup
-# ------------------------------
+
 st.set_page_config(page_title="Movie Recommendation Engine", layout="wide")
 
 st.markdown("""
@@ -58,9 +56,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ------------------------------
-# Load Data and Models
-# ------------------------------
+
 @st.cache_data
 def load_resources():
     df = pd.read_csv("models/Data_clustered.csv")
@@ -84,9 +80,7 @@ def load_resources():
 
 df_full, kmeans, dbscan, gmm, fasttext_vectors, title_to_index, combined_features = load_resources()
 
-# ------------------------------
-# Persistent State Setup (before UI)
-# ------------------------------
+
 if 'refresh_grid' not in st.session_state:
     st.session_state.refresh_grid = False
 
@@ -115,13 +109,10 @@ if 'custom_input' not in st.session_state:
 if 'last_action' not in st.session_state:
     st.session_state.last_action = None
 
-# ------------------------------
-# UI Layout
-# ------------------------------
+
 st.markdown("<div class='main-title'>🎬 Movie Recommendation Engine</div>", unsafe_allow_html=True)
 
-# ------------------------------
-# 🎯 3x3 Movie Grid
+
 st.markdown("<div class='subsection'>🎯 Choose a movie you like:</div>", unsafe_allow_html=True)
 
 df_grid = st.session_state.grid_movies.copy()
@@ -143,8 +134,7 @@ for i in range(3):
                 st.session_state.grid_selected_index = idx
                 st.session_state.last_action = 'grid'
 
-# ------------------------------
-# Refresh Grid Button
+
 st.markdown("### ")
 refresh_col = st.columns([1, 6, 1])[1]
 with refresh_col:
@@ -152,8 +142,6 @@ with refresh_col:
         st.session_state.refresh_grid = True
         st.experimental_rerun()
 
-# ------------------------------
-# Custom Movie Textbox
 st.markdown("---")
 st.markdown("<div class='subsection'>✍️ Or select a custom movie title:</div>", unsafe_allow_html=True)
 
@@ -168,9 +156,7 @@ st.session_state.custom_input = st.selectbox(
 if st.session_state.custom_input and st.session_state.custom_input != "":
     st.session_state.last_action = 'textbox'
 
-# ------------------------------
-# Final Movie Selection
-# ------------------------------
+
 if st.session_state.last_action == 'grid':
     idx = st.session_state.grid_selected_index
     st.session_state.selected_title = df_grid.loc[idx, 'title']
@@ -222,8 +208,7 @@ def get_recommendations_gmm(title, df, title_to_index, combined_features, top_n=
     cluster_movies['similarity'] = cos_sim
     return cluster_movies.sort_values(by='similarity', ascending=False)[['title', 'director', 'genre_list', 'similarity']].head(top_n)
 
-# ------------------------------
-# Recommendation Panel
+
 if st.session_state.selected_title:
     selected_title = st.session_state.selected_title
     st.markdown(f"<div class='subsection'>✅ You selected: <b>{selected_title}</b></div>", unsafe_allow_html=True)
