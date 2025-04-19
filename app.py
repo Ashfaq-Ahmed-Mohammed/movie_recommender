@@ -31,8 +31,9 @@ st.markdown("""
             text-align: center;
             box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
             transition: all 0.3s ease-in-out;
-            font-size: 22px;
+            font-size: 26px;
             font-weight: bold;
+            line-height: 1.3;
             color: #003366;
             cursor: pointer;
         }
@@ -84,7 +85,7 @@ def load_resources():
 df_full, kmeans, dbscan, gmm, fasttext_vectors, title_to_index, combined_features = load_resources()
 
 # ------------------------------
-# Persistent State Setup
+# Persistent State Setup (MUST happen before UI!)
 # ------------------------------
 if 'refresh_grid' not in st.session_state:
     st.session_state.refresh_grid = False
@@ -95,27 +96,26 @@ if 'grid_movies' not in st.session_state:
     popular_recent_movies = recent_movies[recent_movies['popularity'] >= threshold]
     st.session_state.grid_movies = popular_recent_movies.sample(n=9, random_state=None).reset_index(drop=True)
 
-if st.session_state.refresh_grid:
-    recent_movies = df_full[df_full['year'] >= 2000].dropna(subset=['title', 'popularity']).copy()
-    threshold = recent_movies['popularity'].quantile(0.75)
-    popular_recent_movies = recent_movies[recent_movies['popularity'] >= threshold]
-    st.session_state.grid_movies = popular_recent_movies.sample(n=9, random_state=None).reset_index(drop=True)
-    st.session_state.refresh_grid = False
-
 if 'selected_title' not in st.session_state:
     st.session_state.selected_title = None
 
 if 'grid_selected_index' not in st.session_state:
     st.session_state.grid_selected_index = None
 
+if 'custom_input' not in st.session_state:
+    st.session_state.custom_input = ""
+
+if 'last_action' not in st.session_state:
+    st.session_state.last_action = None
+
 # ------------------------------
 # UI Layout
 # ------------------------------
-st.markdown("<div class='main-title'>🎬 Movie Recommendation Engine</div>", unsafe_allow_html=True)
+st.markdown("<div class='main-title'>Movie Recommendation Engine</div>", unsafe_allow_html=True)
 
 # ------------------------------
 # 🎯 3x3 Movie Grid
-st.markdown("<div class='subsection'>🎯 Choose a movie you like:</div>", unsafe_allow_html=True)
+st.markdown("<div class='subsection'>Choose a movie you like:</div>", unsafe_allow_html=True)
 
 df_grid = st.session_state.grid_movies.copy()
 df_grid['year'] = df_grid['year'].fillna(0).astype(int).astype(str)
@@ -133,29 +133,43 @@ for i in range(3):
             clicked = st.button(button_text, key=f"movie_{idx}")
 
             if clicked:
-                st.session_state.selected_title = movie_title
                 st.session_state.grid_selected_index = idx
+                st.session_state.last_action = 'grid'
 
 # ------------------------------
 # Refresh Grid Button
 st.markdown("### ")
 refresh_col = st.columns([1, 6, 1])[1]
 with refresh_col:
-    if st.button("🔁 Refresh Movie Grid", key="refresh_grid_button", help="Get a new random set of movies"):
+    if st.button("Refresh Movie Grid", key="refresh_grid_button", help="Get a new random set of movies"):
         st.session_state.refresh_grid = True
         st.experimental_rerun()
 
 # ------------------------------
 # Custom Movie Textbox
 st.markdown("---")
-st.markdown("<div class='subsection'>✍️ Or enter a custom movie title:</div>", unsafe_allow_html=True)
-custom_input = st.text_input("Movie title")
+st.markdown("<div class='subsection'>Or select a custom movie title:</div>", unsafe_allow_html=True)
 
-if custom_input:
-    st.session_state.selected_title = custom_input
+all_titles = df_full['title'].dropna().sort_values().unique().tolist()
+
+st.session_state.custom_input = st.selectbox(
+    "Type or select a movie title",
+    options=[""] + all_titles,
+    index=0
+)
+
+if st.session_state.custom_input and st.session_state.custom_input != "":
+    st.session_state.last_action = 'textbox'
 
 # ------------------------------
-# Recommendation Functions
+# Final Movie Selection
+# ------------------------------
+if st.session_state.last_action == 'grid':
+    idx = st.session_state.grid_selected_index
+    st.session_state.selected_title = df_grid.loc[idx, 'title']
+elif st.session_state.last_action == 'textbox':
+    st.session_state.selected_title = st.session_state.custom_input
+
 def get_recommendations_kmeans(title, df, title_to_index, combined_features, top_n=10):
     title = title.strip().lower()
     if title not in title_to_index:
@@ -205,13 +219,13 @@ def get_recommendations_gmm(title, df, title_to_index, combined_features, top_n=
 # Recommendation Panel
 if st.session_state.selected_title:
     selected_title = st.session_state.selected_title
-    st.markdown(f"<div class='subsection'>✅ You selected: <b>{selected_title}</b></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='subsection'>You selected: <b>{selected_title}</b></div>", unsafe_allow_html=True)
 
     model_choice = st.radio("Select a recommendation model:", ['K-Means', 'DBSCAN', 'GMM', 'FastText'], horizontal=True)
     top_n = st.slider("Number of recommendations:", 5, 15, 10)
 
-    if st.button("🔍 Get Recommendations"):
-        st.markdown("### 🎥 You might also like:")
+    if st.button("Get Recommendations"):
+        st.markdown("### You might also like:")
 
         if model_choice == 'GMM':
             recommendations = get_recommendations_gmm(selected_title, df_full, title_to_index, combined_features, top_n)
@@ -231,7 +245,6 @@ if st.session_state.selected_title:
             st.warning("No recommendations found. Try another movie.")
         else:
             col1, col2 = st.columns(2)
-
             card_color = "#e6f2ff"
 
             for idx, row in recommendations.iterrows():
@@ -243,12 +256,11 @@ if st.session_state.selected_title:
                         margin: 0.8rem;
                         box-shadow: 2px 2px 8px rgba(0,0,0,0.1);
                     ">
-                        <div style="font-size:22px; font-weight:bold; color:#003366; margin-bottom:0.5rem;">🎬 {row['title']}</div>
-                        <div style="font-size:18px; color:#555555;">🎬 Director: {row.get('director', 'N/A')}</div>
-                        <div style="font-size:18px; color:#555555;">🎭 Genres: {row.get('genre_list', 'N/A')}</div>
+                        <div style="font-size:22px; font-weight:bold; color:#003366; margin-bottom:0.5rem;"> {row['title']}</div>
+                        <div style="font-size:18px; color:#555555;">Director: {row.get('director', 'N/A')}</div>
+                        <div style="font-size:18px; color:#555555;">Genres: {row.get('genre_list', 'N/A')}</div>
                     </div>
                 """
-
                 if idx % 2 == 0:
                     with col1:
                         st.markdown(card_html, unsafe_allow_html=True)
