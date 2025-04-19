@@ -7,52 +7,76 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 st.set_page_config(page_title="Movie Recommendation Engine", layout="wide")
 
+
 st.markdown("""
     <style>
+        .stApp {
+            background-color: #ADD8E1; 
+        }
         .main-title {
             font-size: 48px;
             font-weight: bold;
-            color: #3366cc;
+            color: black;
             text-align: center;
         }
         .subsection {
-            font-size: 24px;
+            font-size: 26px;
+            font-weight: bold;
             margin-top: 30px;
-            font-weight: 600;
+            color: black;
+        }
+        h1, h2, h3, h4, h5, div, span, p, label {
+            color: black;
         }
         .stButton > button {
-            background-color: #f0f8ff;
-            border: none;
+            background-color: white;
+            color: #001f3f;
+            font-weight: bold;
             border-radius: 15px;
             padding: 1.5rem;
             width: 100%;
-            text-align: center;
-            box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
-            transition: all 0.3s ease-in-out;
-            font-size: 26px;
-            font-weight: bold;
-            line-height: 1.3;
-            color: #003366;
-            cursor: pointer;
+            box-shadow: 2px 2px 10px rgba(255,255,255,0.2);
+            font-size: 24px;
         }
         .stButton > button:hover {
-            background-color: #d6eaff;
+            background-color: #cce5ff;
+            color: #001f3f;
             transform: scale(1.03);
         }
         .refresh-button > button {
-            background-color: #d1f2eb;
-            color: #00695c;
+            background-color: white;
+            color: #001f3f;
             font-weight: bold;
             font-size: 16px;
             border-radius: 10px;
             padding: 0.5rem 1rem;
-            margin-top: 1rem;
             border: 2px solid #66bb6a;
         }
         .refresh-button > button:hover {
-            background-color: #b2dfdb;
-            color: #004d40;
+            background-color: #cce5ff;
+            color: #001f3f;
         }
+        .recommendation-card {
+            background-color: white;
+            color: #001f3f;
+            border-radius: 15px;
+            padding: 1.2rem;
+            margin: 0.8rem;
+            box-shadow: 2px 2px 8px rgba(255,255,255,0.2);
+        }
+        
+        div[role="radiogroup"] input[type="radio"] {
+        width: 20px;
+        height: 20px;
+        }
+
+        
+        div[role="radiogroup"] > label > div {
+        color: #001f3f !important; 
+        font-weight: bold;
+        font-size: 22px; 
+        }
+        
     </style>
 """, unsafe_allow_html=True)
 
@@ -95,7 +119,7 @@ if st.session_state.refresh_grid:
     threshold = recent_movies['popularity'].quantile(0.75)
     popular_recent_movies = recent_movies[recent_movies['popularity'] >= threshold]
     st.session_state.grid_movies = popular_recent_movies.sample(n=9, random_state=None).reset_index(drop=True)
-    st.session_state.refresh_grid = False  # VERY IMPORTANT!
+    st.session_state.refresh_grid = False
 
 if 'selected_title' not in st.session_state:
     st.session_state.selected_title = None
@@ -110,10 +134,10 @@ if 'last_action' not in st.session_state:
     st.session_state.last_action = None
 
 
-st.markdown("<div class='main-title'>🎬 Movie Recommendation Engine</div>", unsafe_allow_html=True)
+st.markdown("<div class='main-title'>Movie Recommendation Engine</div>", unsafe_allow_html=True)
 
 
-st.markdown("<div class='subsection'>🎯 Choose a movie you like:</div>", unsafe_allow_html=True)
+st.markdown("<div class='subsection'>Choose a movie you like:</div>", unsafe_allow_html=True)
 
 df_grid = st.session_state.grid_movies.copy()
 df_grid['year'] = df_grid['year'].fillna(0).astype(int).astype(str)
@@ -142,8 +166,9 @@ with refresh_col:
         st.session_state.refresh_grid = True
         st.experimental_rerun()
 
+
 st.markdown("---")
-st.markdown("<div class='subsection'>✍️ Or select a custom movie title:</div>", unsafe_allow_html=True)
+st.markdown("<div class='subsection'>Or select a custom movie title:</div>", unsafe_allow_html=True)
 
 all_titles = df_full['title'].dropna().sort_values().unique().tolist()
 
@@ -211,13 +236,14 @@ def get_recommendations_gmm(title, df, title_to_index, combined_features, top_n=
 
 if st.session_state.selected_title:
     selected_title = st.session_state.selected_title
-    st.markdown(f"<div class='subsection'>✅ You selected: <b>{selected_title}</b></div>", unsafe_allow_html=True)
-
-    model_choice = st.radio("Select a recommendation model:", ['K-Means', 'DBSCAN', 'GMM', 'FastText'], horizontal=True)
-    top_n = st.slider("Number of recommendations:", 5, 15, 10)
+    st.markdown(f"<div class='subsection'>You selected: <b>{selected_title}</b></div>", unsafe_allow_html=True)
+    st.markdown("<h3 style='font-size:23px; color:white;'>Select a recommendation model:</h3>", unsafe_allow_html=True)
+    model_choice = st.radio("placeholder", ['K-Means', 'DBSCAN', 'GMM', 'FastText'], horizontal=True, label_visibility="collapsed")
+    st.markdown("<h3 style='font-size:23px; color:white;'>Number of recommendations:</h3>", unsafe_allow_html=True)
+    top_n = st.slider("placeholder", 5, 15, 10, label_visibility="collapsed")
 
     if st.button("🔍 Get Recommendations"):
-        st.markdown("### 🎥 You might also like:")
+        st.markdown("<h3 style='font-size:23px; color:white;'>You might also like</h3>", unsafe_allow_html=True)
 
         if model_choice == 'GMM':
             recommendations = get_recommendations_gmm(selected_title, df_full, title_to_index, combined_features, top_n)
@@ -237,20 +263,18 @@ if st.session_state.selected_title:
             st.warning("No recommendations found. Try another movie.")
         else:
             col1, col2 = st.columns(2)
-            card_color = "#e6f2ff"
 
             for idx, row in recommendations.iterrows():
+                genres = row.get('genre_list', 'N/A')
+                if isinstance(genres, list):
+                    genres = ", ".join(genres)  
+                elif isinstance(genres, str):
+                    genres = genres.replace("[", "").replace("]", "").replace("'", "")  
                 card_html = f"""
-                    <div style="
-                        background-color: {card_color};
-                        border-radius: 15px;
-                        padding: 1.2rem;
-                        margin: 0.8rem;
-                        box-shadow: 2px 2px 8px rgba(0,0,0,0.1);
-                    ">
-                        <div style="font-size:22px; font-weight:bold; color:#003366; margin-bottom:0.5rem;">🎬 {row['title']}</div>
-                        <div style="font-size:18px; color:#555555;">🎬 Director: {row.get('director', 'N/A')}</div>
-                        <div style="font-size:18px; color:#555555;">🎭 Genres: {row.get('genre_list', 'N/A')}</div>
+                    <div class='recommendation-card'>
+                        <div style="font-size:22px; font-weight:bold; margin-bottom:0.5rem;">{row['title']}</div>
+                        <div style="font-size:18px;">Director: {row.get('director', 'N/A')}</div>
+                        <div style="font-size:18px;">Genres: {genres}</div>
                     </div>
                 """
                 if idx % 2 == 0:
