@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 import pickle
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontProperties
 
 
 st.set_page_config(page_title="Movie Recommendation Engine", layout="wide")
@@ -103,6 +106,8 @@ def load_resources():
     return df, kmeans, dbscan, gmm, fasttext_vectors, title_to_index, combined_features
 
 df_full, kmeans, dbscan, gmm, fasttext_vectors, title_to_index, combined_features = load_resources()
+if 'recommendation_ready' not in st.session_state:
+    st.session_state.recommendation_ready = False
 
 
 if 'refresh_grid' not in st.session_state:
@@ -164,6 +169,8 @@ refresh_col = st.columns([1, 6, 1])[1]
 with refresh_col:
     if st.button("🔁 Refresh Movie Grid", key="refresh_grid_button", help="Get a new random set of movies"):
         st.session_state.refresh_grid = True
+        st.session_state.recommendation_ready = False
+        st.session_state.recommendations = None
         st.experimental_rerun()
 
 
@@ -243,43 +250,140 @@ if st.session_state.selected_title:
     top_n = st.slider("placeholder", 5, 15, 10, label_visibility="collapsed")
 
     if st.button("🔍 Get Recommendations"):
-        st.markdown("<h3 style='font-size:23px; color:white;'>You might also like</h3>", unsafe_allow_html=True)
-
+        
         if model_choice == 'GMM':
-            recommendations = get_recommendations_gmm(selected_title, df_full, title_to_index, combined_features, top_n)
+            st.session_state.recommendations = recommendations = get_recommendations_gmm(selected_title, df_full, title_to_index, combined_features, top_n)
         elif model_choice == 'DBSCAN':
-            recommendations = get_recommendations_dbscan(selected_title, df_full, title_to_index, combined_features, top_n)
+            st.session_state.recommendations = recommendations = get_recommendations_dbscan(selected_title, df_full, title_to_index, combined_features, top_n)
+            
         elif model_choice == 'K-Means':
-            recommendations = get_recommendations_kmeans(selected_title, df_full, title_to_index, combined_features, top_n)
+            st.session_state.recommendations = recommendations = get_recommendations_kmeans(selected_title, df_full, title_to_index, combined_features, top_n)
+            
         else:
             idx = df_full[df_full['title'].str.strip().str.lower() == selected_title.strip().lower()].index[0]
             sim_scores = cosine_similarity([fasttext_vectors[idx]], fasttext_vectors).flatten()
             sim_indices = sim_scores.argsort()[::-1][1:top_n+1]
-            recommendations = df_full.iloc[sim_indices][['title', 'director', 'genre_list']]
+            st.session_state.recommendations = recommendations = df_full.iloc[sim_indices][['title', 'director', 'genre_list']]
+        
+        st.session_state.recommendation_ready = True
+
+    if st.session_state.get("recommendation_ready") and isinstance(st.session_state.recommendations, pd.DataFrame):
+        st.markdown("<h3 style='font-size:23px; color:black;'>You might also like</h3>", unsafe_allow_html=True)
+
+        recommendations = st.session_state.recommendations
+        col1, col2 = st.columns(2)
+
+        for idx, row in recommendations.iterrows():
+            genres = row.get('genre_list', 'N/A')
+            if isinstance(genres, list):
+                genres = ", ".join(genres)
+            elif isinstance(genres, str):
+                genres = genres.replace("[", "").replace("]", "").replace("'", "")
+
+            card_html = f"""
+            <div class='recommendation-card'>
+                <div style="font-size:22px; font-weight:bold; margin-bottom:0.5rem;">{row['title']}</div>
+                <div style="font-size:18px;">Director: {row.get('director', 'N/A')}</div>
+                <div style="font-size:18px;">Genres: {genres}</div>
+            </div>
+            """
+
+            if idx % 2 == 0:
+                with col1:
+                    st.markdown(card_html, unsafe_allow_html=True)
+            else:
+                with col2:
+                    st.markdown(card_html, unsafe_allow_html=True)
+
+    if st.session_state.recommendation_ready:
+        st.markdown("<h3 style='font-size:23px; color:white;'>Cluster Visualization</h3>", unsafe_allow_html=True)
+        st.markdown("<h4 style='font-size:18px; color:white;'>Click the button below to visualize the clusters.</h4>", unsafe_allow_html=True)
+
+    if st.button("📊 Show Cluster Visualization"):
+        recommendations = st.session_state.recommendations
+
+        
+        vectors = fasttext_vectors if model_choice == "FastText" else combined_features
+
+        pca = PCA(n_components=2)
+        coordinates = pca.fit_transform(vectors)
+
+        df_full['x'] = coordinates[:, 0]
+        df_full['y'] = coordinates[:, 1]
+
+        selected_movie = selected_title.strip().lower()
+        selected_index = title_to_index[selected_movie]
 
         if isinstance(recommendations, str):
             st.warning(recommendations)
-        elif recommendations is None or len(recommendations) == 0:
-            st.warning("No recommendations found. Try another movie.")
         else:
-            col1, col2 = st.columns(2)
+            recommended_titles = recommendations['title'].tolist()
+            recommended_indices = df_full[
+                df_full['title'].str.lower().isin([title.lower() for title in recommended_titles])
+            ].index
 
-            for idx, row in recommendations.iterrows():
-                genres = row.get('genre_list', 'N/A')
-                if isinstance(genres, list):
-                    genres = ", ".join(genres)  
-                elif isinstance(genres, str):
-                    genres = genres.replace("[", "").replace("]", "").replace("'", "")  
-                card_html = f"""
-                    <div class='recommendation-card'>
-                        <div style="font-size:22px; font-weight:bold; margin-bottom:0.5rem;">{row['title']}</div>
-                        <div style="font-size:18px;">Director: {row.get('director', 'N/A')}</div>
-                        <div style="font-size:18px;">Genres: {genres}</div>
-                    </div>
-                """
-                if idx % 2 == 0:
-                    with col1:
-                        st.markdown(card_html, unsafe_allow_html=True)
-                else:
-                    with col2:
-                        st.markdown(card_html, unsafe_allow_html=True)
+            
+            fig, ax = plt.subplots(figsize=(6, 5))
+            for spine in ax.spines.values():
+                spine.set_edgecolor('#333333')
+                spine.set_linewidth(1.5)
+            legend_font = FontProperties()
+            legend_font.set_size('xx-small')
+            legend_font.set_weight('normal')
+
+            if model_choice != "FastText":
+                
+                cluster_column = {
+                    "K-Means": "cluster",
+                    "DBSCAN": "dbscan_cluster",
+                    "GMM": "gmm_cluster"
+                }[model_choice]
+                selected_cluster_label = df_full.loc[selected_index, cluster_column]
+                cluster_movies = df_full[df_full[cluster_column] == selected_cluster_label]
+
+                
+                ax.scatter(
+                    cluster_movies['x'],
+                    cluster_movies['y'],
+                    alpha=0.4,
+                    s=10,
+                    color='gray',
+                    label='Same Cluster'
+                )
+            else:
+                
+                ax.scatter(
+                    df_full['x'],
+                    df_full['y'],
+                    alpha=0.2,
+                    s=10,
+                    color='gray',
+                    label='All Movies'
+                )
+
+            
+            ax.scatter(
+                df_full.loc[recommended_indices, 'x'],
+                df_full.loc[recommended_indices, 'y'],
+                color='blue',
+                s=10,
+                label='Recommended'
+            )
+
+            
+            ax.scatter(
+                df_full.loc[selected_index, 'x'],
+                df_full.loc[selected_index, 'y'],
+                color='red',
+                s=30,
+                marker='*',
+                label='Selected Movie'
+            )
+
+            ax.set_title("FastText Visualization" if model_choice == "FastText" else "Cluster Visualization", fontsize=6, color='black')
+            ax.tick_params(labelsize=6, colors='black')
+            ax.legend(prop=legend_font)
+            ax.set_xlabel("PCA Component 1", fontsize=6, color='black')
+            ax.set_ylabel("PCA Component 2", fontsize=6, color='black')
+            plt.tight_layout()
+            st.pyplot(fig)
