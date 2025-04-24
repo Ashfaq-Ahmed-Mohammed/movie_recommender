@@ -171,7 +171,7 @@ with refresh_col:
         st.session_state.refresh_grid = True
         st.session_state.recommendation_ready = False
         st.session_state.recommendations = None
-        st.experimental_rerun()
+        st.rerun()
 
 
 st.markdown("---")
