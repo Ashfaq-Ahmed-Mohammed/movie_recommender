@@ -244,9 +244,9 @@ def get_recommendations_gmm(title, df, title_to_index, combined_features, top_n=
 if st.session_state.selected_title:
     selected_title = st.session_state.selected_title
     st.markdown(f"<div class='subsection'>You selected: <b>{selected_title}</b></div>", unsafe_allow_html=True)
-    st.markdown("<h3 style='font-size:23px; color:white;'>Select a recommendation model:</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='font-size:23px; color:black;'>Select a recommendation model:</h3>", unsafe_allow_html=True)
     model_choice = st.radio("placeholder", ['K-Means', 'DBSCAN', 'GMM', 'FastText'], horizontal=True, label_visibility="collapsed")
-    st.markdown("<h3 style='font-size:23px; color:white;'>Number of recommendations:</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='font-size:23px; color:black;'>Number of recommendations:</h3>", unsafe_allow_html=True)
     top_n = st.slider("placeholder", 5, 15, 10, label_visibility="collapsed")
 
     if st.button("🔍 Get Recommendations"):
@@ -296,8 +296,8 @@ if st.session_state.selected_title:
                     st.markdown(card_html, unsafe_allow_html=True)
 
     if st.session_state.recommendation_ready:
-        st.markdown("<h3 style='font-size:23px; color:white;'>Cluster Visualization</h3>", unsafe_allow_html=True)
-        st.markdown("<h4 style='font-size:18px; color:white;'>Click the button below to visualize the clusters.</h4>", unsafe_allow_html=True)
+        st.markdown("<h3 style='font-size:23px; color:black;'>Cluster Visualization</h3>", unsafe_allow_html=True)
+        st.markdown("<h4 style='font-size:18px; color:black;'>Click the button below to visualize the clusters.</h4>", unsafe_allow_html=True)
 
     if st.button("📊 Show Cluster Visualization"):
         recommendations = st.session_state.recommendations
